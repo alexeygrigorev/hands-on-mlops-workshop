@@ -38,8 +38,7 @@ About the instructor:
 * Recommended: t2.large (2 CPU and 8 GiB RAM)
 * Create or select an existing key (note the name) 
 * Create a security group
-    * Allow SSH traffic from everywhere (just for this workshop)
-    * Allow HTTP traffic
+    * Allow SSH traffic from everywhere
 * 20 GB storage
 * Give admin rights to the instance profile of the VM
 
@@ -165,6 +164,13 @@ Create a directory (e.g. "train") and run there
 pipenv --python=3.10
 ```
 
+> **Note** if you have conda and don't have Python 3.10.10,
+> you can install it using this command:
+> `conda create --name py3-10-10 python=3.10.10`
+> and then you can specify the path to your python
+> executable: `pipenv install --python=pipenv install --python=/c/Users/alexe/anaconda3/envs/py3-10-10/python.exe` (or `~/anaconda3/envs/py3-10-10/bin/python`)
+
+
 Install the dependencies
 
 ```bash
@@ -198,10 +204,10 @@ Now open http://localhost:8888/
 
 ### Experiment tracking
 
-First, let's add mlflow for tracking experiments 
+First, let's add mlflow for tracking experiments. 
 
 ```bash
-pipenv install mlflow boto3
+pipenv install mlflow==2.4.1 boto3
 ```
 
 Run MLFlow locally (replace it with your bucket name)
@@ -212,13 +218,15 @@ pipenv run mlflow server \
     --default-artifact-root s3://mlflow-models-alexey
 ```
 
+(add 5000 to port forwarding if you're doing it remotely)
+
 Open it at http://localhost:5000/
 
 
 Connect to the server from the notebook
 
 ```python
-import mflow
+import mlflow
 
 mlflow.set_tracking_uri("http://localhost:5000")
 mlflow.set_experiment("nyc-taxi-experiment")
@@ -238,7 +246,7 @@ with mlflow.start_run():
         'categorical': categorical,
         'numerical': numerical,
     })
-    
+
     dv = DictVectorizer()
     X_train = dv.fit_transform(train_dicts)
     X_val = dv.transform(val_dicts)
@@ -250,12 +258,34 @@ with mlflow.start_run():
     rmse = mean_squared_error(y_val, y_pred, squared=False)
     print(rmse)
     mlflow.log_metric('rmse', rmse)
-    
+
     with open('dict_vectorizer.bin', 'wb') as f_out:
         pickle.dump(dv, f_out)
     mlflow.log_artifact('dict_vectorizer.bin')
     
     mlflow.sklearn.log_model(lr, 'model')
+
+    print(f'run ID: {mlflow.active_run().info.run_id}')
+```
+
+Go to MLFlow UI and find the latest run: 
+
+```
+attributes.run_id='f2c07e306f9a44308bafda35e22fc9f1'
+```
+
+Or find it using a direct link: http://localhost:5000/#/experiments/1/runs/f2c07e306f9a44308bafda35e22fc9f1
+
+
+Now let's add a parameter:
+
+```python
+model_params = {
+    'fit_intercept': True
+}
+mlflow.log_params(model_params)
+
+lr = LinearRegression(**model_params)
 ```
 
 Replace it with a pipeline:
@@ -266,7 +296,7 @@ from sklearn.pipeline import make_pipeline
 
 pipeline = make_pipeline(
     DictVectorizer(),
-    LinearRegression()
+    LinearRegression(**model_params)
 )
 
 pipeline.fit(train_dicts, y_train)
@@ -275,24 +305,19 @@ y_pred = pipeline.predict(val_dicts)
 mlflow.sklearn.log_model(pipeline, 'model')
 ```
 
-## Part 3: Training pipelines
+### Loading the model
 
-### Creating a training script
+```python
+logged_model = 'runs:/7c373fc9626549ed91cebb714b07e60a/model'
+loaded_model = mlflow.pyfunc.load_model(logged_model)
 
-Convert the notebook to a script 
+categorical = ['PULocationID', 'DOLocationID']
+numerical = ['trip_distance']
 
-```bash
-pipenv run jupyter nbconvert --to=script duration-prediction.ipynb
+records = df[categorical + numerical].to_dict(orient='records')
+
+loaded_model.predict(records)
 ```
-
-Rename the file to `train.py` and clean it
-
-Run it:
-
-```bash 
-pipenv run python train.py
-```
-
 
 ### Model registry
 
@@ -329,21 +354,46 @@ model = mlflow.pyfunc.load_model(storage_url)
 y_pred = model.predict(val_dicts)
 ```
 
-## Part 4: Deployment
+## Part 3: Training pipelines
 
+### Creating a training script
+
+Convert the notebook to a script 
+
+```bash
+pipenv run jupyter nbconvert --to=script duration-prediction.ipynb
+```
+
+Rename the file to `train.py` and clean it
+
+Run it:
+
+```bash 
+pipenv run python train.py
+```
+
+## Part 4: Deployment
 
 Poll: "What can we use for serving an ML model?"
 
+### Web service (Flask)
 
 Now let's go to the `serve` folder and create a virtual 
 environment
 
 ```bash
 pipenv --python=3.10
-pipenv install scikit-learn==1.2.2 mlflow==1.29.0 boto3 flask gunicorn
+pipenv install scikit-learn==1.2.2 mlflow==2.4.1 boto3 flask gunicorn
 ```
 
-Create a simple flask app (see [`serve.py`](serve/serve.py))
+Create a Flask app
+
+```python
+import mlflow
+from flask import Flask, request, jsonify
+
+
+```
 
 
 Run it:
