@@ -5,15 +5,12 @@ name = "pypi"
 
 [packages]
 scikit-learn = "==1.2.2"
-pandas = "*"
-pyarrow = "*"
-seaborn = "*"
 mlflow = "==2.4.1"
 boto3 = "*"
+flask = "*"
+gunicorn = "*"
 
 [dev-packages]
-jupyter = "*"
-pexpect = "*"
 
 [requires]
 python_version = "3.10"
