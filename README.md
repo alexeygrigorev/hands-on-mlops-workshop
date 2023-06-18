@@ -801,8 +801,8 @@ for i in {1..20}; do
     REQUEST='{
         "ride_id": "XYZ10-'${i}'",
         "ride": {
-            "PULocationID": '${i}',
-            "DOLocationID": 102,
+            "PULocationID": "'${i}'",
+            "DOLocationID": "102",
             "trip_distance": '${i}'
         }
     }'
@@ -835,9 +835,13 @@ data in the monitor/data folder. To generate it, run
 the `prepare-files.ipynb` notebook.
 
 
-## Data drift report
+### Data drift report
 
 Let's use Evidently to generate a simple visual report
+
+```python
+import pandas as pd
+```
 
 First, load the reference data (data we used for training)
 
@@ -850,7 +854,7 @@ take a sample:
 
 
 ```python
-df_reference = pd.read_parquet('data/2022/01/2022-01-full.parquet')
+df_reference_sample = df_reference.sample(n=20000, random_state=1)
 ```
 
 Next, we load the "production" data. First, we load the trips:
@@ -913,7 +917,7 @@ report = Report(metrics=[
     DataDriftPreset(
         columns=['PULocationID', 'DOLocationID', 'trip_distance'],
         cat_stattest='psi',
-        cat_stattest_threshold=0.2
+        cat_stattest_threshold=0.2,
         num_stattest='ks',
         num_stattest_threshold=0.2,
     ), 
@@ -949,32 +953,10 @@ find a lot of examples online. Or use ChatGPT to help you.
 You can generate these reports in your automatic pipelines and then
 send them e.g. over email.
 
-Let's create this pipeline.
+Let's create this pipeline: convert the notebook to script
 
 
-## Creating a pipeline with Prefect
-
-Now we'll use Prefect to orchestrate the report generation.
-
-We will take the code we created and put it into a Python script. 
-See `pipeline_sample.py` for details. 
-
-Run prefect server:
-
-```bash
-pipenv run prefect config set PREFECT_UI_API_URL=http://127.0.0.1:4200/api
-pipenv run prefect server start
-```
-
-Run the pipeline:
-
-```bash
-pipenv run prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
-pipenv run python pipeline_sample.py
-```
-
-
-## Data checks
+### Data checks
 
 * Automate data checks as part of the prediction pipeline. Design a custom test suite for data quality, data drift and prediction drift.
 
@@ -1053,13 +1035,13 @@ Examples:
 
 * https://github.com/evidentlyai/evidently/blob/main/examples/sample_notebooks/evidently_tests.ipynb
 
-## Model quality checks
+
+### Model quality checks
 
 We also have labels that come with delay - every time the ride 
 ended, we can compare the predictions with the actual duration
 and make some conclusions. If our model performance drifts, 
 we can notice it and react (e.g. by retraining the model)
-
 
 First, we need to prepare the data a bit:
 
@@ -1086,9 +1068,6 @@ from evidently.metric_preset import ClassificationPreset
 ```
 
 
-## Alerting
-
-* Setting up slack/email alerts 
 
 
 ## Summary
