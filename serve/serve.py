@@ -35,8 +35,6 @@ def predict_endpoint():
     pred = predict(features)
 
     result = {
-        'ride_id': ride_id,
-        'version': MODEL_VERSION,
         'prediction': {
             'duration': pred,
         }
