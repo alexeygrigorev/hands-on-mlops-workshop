@@ -420,7 +420,6 @@ app = Flask('duration-prediction')
 def predict_endpoint():
     body = request.get_json()
     ride = body['ride']
-    ride_id = body['ride_id']
 
     features = prepare_features(ride)
     pred = predict(features)
@@ -438,10 +437,14 @@ if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=9696)
 ```
 
-
 Run it:
 
 ```bash
+MODEL_METADATA=$(pipenv run python storage_uri.py \
+    --tracking-uri http://localhost:5000 \
+    --model-name trip_duration \
+    --stage-name staging)
+
 echo ${MODEL_METADATA} | jq
 
 export MODEL_VERSION=$(echo ${MODEL_METADATA} | jq -r ".run_id")
@@ -454,9 +457,11 @@ Test it:
 
 ```bash
 REQUEST='{
-    "PULocationID": 100,
-    "DOLocationID": 102,
-    "trip_distance": 30
+    "ride": {
+        "PULocationID": 100,
+        "DOLocationID": 102,
+        "trip_distance": 30
+    }
 }'
 URL="http://localhost:9696/predict"
 
@@ -466,9 +471,13 @@ curl -X POST \
     ${URL}
 ```
 
+### Dockerize 
+
+
+### Deployment
+
 Now package the model with Docker and deploy it
 (outside of the scope for this tutorial).
-
 
 
 ## Part 5: Monitoring
