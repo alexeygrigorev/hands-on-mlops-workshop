@@ -471,13 +471,218 @@ curl -X POST \
     ${URL}
 ```
 
+### Gunicorn 
+
+Let's run it with gunicord (won't work on Windows. it you're on Windows,
+just skip it and jump to the Docker part) 
+
+
 ### Dockerize 
+
+Create a `Dockerfile`:
+
+```docker
+FROM python:3.10.10-slim
+
+RUN pip install pipenv
+
+WORKDIR /app
+
+COPY ["Pipfile", "Pipfile.lock", "./"]
+RUN pipenv install --system --deploy
+
+COPY ["serve.py", "./"]
+
+EXPOSE 9696
+
+ENTRYPOINT ["gunicorn", "--bind=0.0.0.0:9696", "serve:app"]
+```
+
+Build the image:
+
+```bash
+docker build -t trip_duration:v1 .
+```
+
+Run it:
+
+```bash
+docker run -it \
+    -p 9696:9696 \
+    -e MODEL_VERSION="${MODEL_VERSION}" \
+    -e MODEL_URI="${MODEL_URI}" \
+    trip_duration:v1
+```
+
+Test it:
+
+```bash
+REQUEST='{
+    "ride": {
+        "PULocationID": 100,
+        "DOLocationID": 102,
+        "trip_distance": 30
+    }
+}'
+URL="http://localhost:9696/predict"
+
+curl -X POST \
+    -d "${REQUEST}" \
+    -H "Content-Type: application/json" \
+    ${URL}
+```
+
+### Add more information
+
+Later we will need more information about the request, e.g. ride_id
+and the version of the model used for serving this request. Let's
+add this information now:
+
+```python
+ride_id = body['ride_id']
+
+result = {
+    'prediction': {
+        'duration': pred,
+    },
+    'ride_id': ride_id,
+    'version': MODEL_VERSION,
+}
+```
+
+Rebuild the image:
+
+```bash
+docker build -t trip_duration:v2 .
+```
+
+Run it:
+
+```bash
+docker run -it \
+    -p 9696:9696 \
+    -e MODEL_VERSION="${MODEL_VERSION}" \
+    -e MODEL_URI="${MODEL_URI}" \
+    trip_duration:v2
+```
+
+Test it:
+
+```bash
+REQUEST='{
+    "ride": {
+        "PULocationID": 100,
+        "DOLocationID": 102,
+        "trip_distance": 30
+    },
+    "ride_id": "xyz"
+}'
+URL="http://localhost:9696/predict"
+
+curl -X POST \
+    -d "${REQUEST}" \
+    -H "Content-Type: application/json" \
+    ${URL} | jq
+```
 
 
 ### Deployment
 
-Now package the model with Docker and deploy it
-(outside of the scope for this tutorial).
+Now we can deploy it anywhere. For example, Elastic Beanstalk
+
+```bash
+pipenv install --dev awsebcli
+```
+
+Init the project:
+
+```bash
+pipenv run eb init -p docker trip_duration
+```
+
+To run locally, open `.elasticbeanstalk/config.yaml` and replace 
+
+```yaml
+  default_platform: 'Docker running on 64bit Amazon Linux 2'
+  default_region: eu-west-1
+```
+
+Run it in Docker:
+
+```bash
+pipenv run eb local run \
+    --port 9696 \
+    --envvars MODEL_VERSION="${MODEL_VERSION}",MODEL_URI="${MODEL_URI}"
+```
+
+Now let's deploy it.
+
+We need to create a role with read-only S3 access to the bucket with
+the models
+
+* Go to AIM policies, create "mlflow-bucket-read-only"
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "s3:Get*",
+          "s3:List*"
+        ],
+        "Resource": [
+          "arn:aws:s3:::mlflow-models-alexey/*",
+          "arn:aws:s3:::mlflow-models-alexey"
+        ]
+      }
+    ]
+  }
+  ```
+* Go to IAM roles, click create "ec2-mlflow-bucket-read-only" and attach "mlflow-bucket-read-only" 
+* Note the instance-profile ARN (something like "arn:aws:iam::XXXXXXXX:instance-profile/ec2-mlflow-bucket-read-only")
+
+Run 
+
+```bash
+pipenv run eb create trip-duration-env \
+    --envvars MODEL_VERSION="${MODEL_VERSION}",MODEL_URI="${MODEL_URI}" \
+    -ip arn:aws:iam::XXXXXXXX:instance-profile/ec2-mlflow-bucket-read-only
+```
+
+Wait for ~5 minutes
+
+Note: to update the environment variables later, use 
+
+```bash
+pipenv run eb setenv MODEL_VERSION="${MODEL_VERSION}" MODEL_URI="${MODEL_URI}"
+```
+
+Test it:
+
+```bash
+REQUEST='{
+    "ride": {
+        "PULocationID": 100,
+        "DOLocationID": 102,
+        "trip_distance": 30
+    },
+    "ride_id": "xyz"
+}'
+URL="http://trip-duration-env.eba-im4te5md.eu-west-1.elasticbeanstalk.com/predict"
+
+curl -X POST \
+    -d "${REQUEST}" \
+    -H "Content-Type: application/json" \
+    ${URL} | jq
+```
+
+Now we can terminate it.
+
+Note: there are many ways to deploy this model. EB is easy to show, 
+but in practice you will probably use something like ECS or Kubernetes.
+Regardless of the platform, once you package your code in a Docker
+container, you can run it anywhere.
 
 
 ## Part 5: Monitoring
@@ -488,5 +693,6 @@ Now package the model with Docker and deploy it
 ### Also see
 
 * https://github.com/DataTalksClub/mlops-zoomcamp
+* http://mlzoomcamp.com/
 * https://github.com/alexeygrigorev/lightweight-mlops-zoomcamp
 * https://github.com/alexeygrigorev/ml-observability-workshop

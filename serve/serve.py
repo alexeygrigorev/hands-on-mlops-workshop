@@ -37,7 +37,9 @@ def predict_endpoint():
     result = {
         'prediction': {
             'duration': pred,
-        }
+        },
+        'ride_id': ride_id,
+        'version': MODEL_VERSION,
     }
 
     return jsonify(result)
