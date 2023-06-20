@@ -12,7 +12,7 @@ Plan:
 * Part 5: Monitoring
 
 
-This is stripped-down version of
+This is a stripped-down version of
 [MLOps Zoomcamp](https://github.com/DataTalksClub/mlops-zoomcamp) 
 
 
@@ -22,7 +22,7 @@ About the instructor:
 * Author of [ML Bookcamp](https://mlbookcamp.com/)
 * Instructor of [ML Zoomcamp](http://mlzoomcamp.com/), [MLOps Zoomcamp](https://github.com/DataTalksClub/mlops-zoomcamp) and [Data Engineering Zoomcamp](https://github.com/DataTalksClub/data-engineering-zoomcamp)
 * Connect with me on [LinkedIn](https://www.linkedin.com/in/agrigorev/) and [Twitter](https://twitter.com/Al_Grigor) 
-
+* Do you want to run this workshop or a similar one at your company? Write me at alexey@datatalks.club 
 
 ## Part 0: Preparing the environment
 
@@ -524,8 +524,8 @@ Test it:
 ```bash
 REQUEST='{
     "ride": {
-        "PULocationID": 100,
-        "DOLocationID": 102,
+        "PULocationID": "100",
+        "DOLocationID": "102",
         "trip_distance": 30
     }
 }'
@@ -576,8 +576,8 @@ Test it:
 ```bash
 REQUEST='{
     "ride": {
-        "PULocationID": 100,
-        "DOLocationID": 102,
+        "PULocationID": "100",
+        "DOLocationID": "102",
         "trip_distance": 30
     },
     "ride_id": "xyz"
@@ -668,8 +668,8 @@ Test it:
 ```bash
 REQUEST='{
     "ride": {
-        "PULocationID": 100,
-        "DOLocationID": 102,
+        "PULocationID": "100",
+        "DOLocationID": "102",
         "trip_distance": 30
     },
     "ride_id": "xyz"
@@ -1053,6 +1053,8 @@ df = df.rename(columns={'duration': 'target'})
 Now let's run the report:
 
 ```python
+from evidently.metric_preset import RegressionPreset
+
 regression_performance_report = Report(metrics=[
     RegressionPreset(columns=['PULocationID', 'DOLocationID', 'trip_distance']),
 ])
@@ -1061,13 +1063,11 @@ regression_performance_report.run(reference_data=df_reference_sample, current_da
 regression_performance_report.show(mode='inline')
 ```
 
-Note: for classification you can use this report:
+Note: for classification, you can use this report:
 
 ```python
 from evidently.metric_preset import ClassificationPreset
 ```
-
-
 
 
 ## Summary
